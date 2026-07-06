@@ -1,7 +1,7 @@
 name: Gerar Executavel Windows
 
 on:
-  workflow_dispatch: # Permite que você clique em um botão para gerar o arquivo quando quiser
+  workflow_dispatch:
 
 jobs:
   build:
@@ -22,8 +22,8 @@ jobs:
 
     - name: Criar o arquivo .EXE
       run: |
-        pyinstaller --onefile auto_logs.py
-
+        pyinstaller --onefile --name="auto_logs" *.py
+        
     - name: Disponibilizar para Download
       uses: actions/upload-artifact@v4
       with:
