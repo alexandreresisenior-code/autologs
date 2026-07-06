@@ -2,7 +2,8 @@ import os
 import csv
 import time
 from selenium import webdriver
-from selenium.webdriver.edge.options import Options
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -10,9 +11,11 @@ from selenium.webdriver.support import expected_conditions as EC
 # 1. Configurações de pastas e downloads invisíveis
 pasta_atual = os.getcwd()
 
-config_edge = Options()
-config_edge.add_argument("--headless")  # Roda oculto em segundo plano
-config_edge.add_experimental_option("prefs", {
+config_chrome = Options()
+config_chrome.add_argument("--headless=new")  # Versão mais recente e estável do modo oculto
+config_chrome.add_argument("--no-sandbox")
+config_chrome.add_argument("--disable-dev-shm-usage")
+config_chrome.add_experimental_option("prefs", {
     "download.default_directory": pasta_atual,
     "download.prompt_for_download": False,
     "directory_upgrade": True
@@ -30,9 +33,18 @@ except Exception as e:
     input("\nPressione Enter para sair...")
     exit()
 
-# 3. Inicia o Navegador Edge nativo do Windows
-print("Iniciando navegador...")
-driver = webdriver.Edge(options=config_edge)
+# 3. Inicia o Navegador Chrome (Gerenciando dinamicamente o driver para evitar o erro da linha 35)
+print("Iniciando navegador (Chrome)...")
+try:
+    # O Selenium moderno baixa o driver correto na memória sem instalar nada no PC do usuário
+    driver = webdriver.Chrome(options=config_chrome)
+except Exception as err_nav:
+    print(f"Erro ao iniciar Chrome padrão: {err_nav}")
+    print("Tentando inicialização alternativa...")
+    # Segunda tentativa forçando configurações do sistema
+    os.environ['WDM_LOG_LEVEL'] = '0'
+    driver = webdriver.Chrome(options=config_chrome)
+
 wait = WebDriverWait(driver, 15)  # Tempo máximo de espera para elementos carregarem
 
 try:
