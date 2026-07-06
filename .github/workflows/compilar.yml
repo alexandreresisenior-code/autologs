@@ -21,11 +21,12 @@ jobs:
         pip install selenium pyinstaller
 
     - name: Criar o arquivo .EXE
+      shell: cmd
       run: |
-        pyinstaller --onefile --name="auto_logs" *.py
+        for %%f in (*.py) do pyinstaller --onefile "%%f"
         
     - name: Disponibilizar para Download
       uses: actions/upload-artifact@v4
       with:
         name: Executavel-Windows
-        path: dist/auto_logs.exe
+        path: dist/
