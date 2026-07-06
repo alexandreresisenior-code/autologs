@@ -18,12 +18,12 @@ jobs:
 
     - name: Instalar dependencias
       run: |
-        pip install selenium pyinstaller
+        pip install selenium pyinstaller webdriver-manager
 
     - name: Criar o arquivo .EXE
       shell: cmd
       run: |
-        for %%f in (*.py) do pyinstaller --onefile "%%f"
+        for %%f in (*.py) do pyinstaller --onefile --collect-all selenium "%%f"
         
     - name: Disponibilizar para Download
       uses: actions/upload-artifact@v4
