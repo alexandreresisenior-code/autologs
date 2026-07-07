@@ -3,22 +3,21 @@ import csv
 import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# 1. Configurações de pastas e downloads invisíveis
+# 1. Configurações de pastas e downloads
 pasta_atual = os.getcwd()
 
 config_chrome = Options()
-config_chrome.add_argument("--headless=new")  # Versão mais recente e estável do modo oculto
-config_chrome.add_argument("--no-sandbox")
-config_chrome.add_argument("--disable-dev-shm-usage")
+# REMOVIDO O HEADLESS: O navegador vai abrir fisicamente na sua tela para vermos o que acontece!
+config_chrome.add_argument("--start-maximized")
 config_chrome.add_experimental_option("prefs", {
     "download.default_directory": pasta_atual,
     "download.prompt_for_download": False,
-    "directory_upgrade": True
+    "directory_upgrade": True,
+    "safebrowsing.enabled": True
 })
 
 # 2. Leitura do arquivo de credenciais (credenciais.txt)
@@ -33,19 +32,19 @@ except Exception as e:
     input("\nPressione Enter para sair...")
     exit()
 
-# 3. Inicia o Navegador Chrome (Gerenciando dinamicamente o driver para evitar o erro da linha 35)
-print("Iniciando navegador (Chrome)...")
+# 3. Inicia o Navegador Chrome Nativo
+print("Iniciando navegador Chrome...")
 try:
-    # O Selenium moderno baixa o driver correto na memória sem instalar nada no PC do usuário
+    # Versões modernas do Selenium não precisam de parâmetros complexos para iniciar o Chrome local
     driver = webdriver.Chrome(options=config_chrome)
 except Exception as err_nav:
-    print(f"Erro ao iniciar Chrome padrão: {err_nav}")
-    print("Tentando inicialização alternativa...")
-    # Segunda tentativa forçando configurações do sistema
-    os.environ['WDM_LOG_LEVEL'] = '0'
-    driver = webdriver.Chrome(options=config_chrome)
+    print(f"\n--- ERRO AO INICIAR O NAVEGADOR ---")
+    print(err_nav)
+    print("-----------------------------------")
+    input("\nPressione Enter para fechar...")
+    exit()
 
-wait = WebDriverWait(driver, 15)  # Tempo máximo de espera para elementos carregarem
+wait = WebDriverWait(driver, 15)
 
 try:
     # 4. Realiza o Login dinâmico no WebVisu / CODESYS
@@ -58,7 +57,7 @@ try:
         botao_login_inicial = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Login') or contains(text(), 'Manual')]")))
         botao_login_inicial.click()
         print("Botão inicial clicado. Aguardando campos de texto...")
-        time.sleep(2)  # Pausa para a animação do form abrir
+        time.sleep(2)
     except Exception:
         print("Aviso: Não encontrou o botão por texto, tentando prosseguir assumindo que o form já possa estar aberto...")
 
@@ -118,27 +117,22 @@ try:
         for linha in leitor_csv:
             if not linha:
                 continue
-            uuid = linha[0].strip()
+            uuid = Finder_uuid = linha[0].strip()
             
-            # Monta a URL exata juntando o endereço do servidor, a UUID e o loginId capturado
             url_log = f"http://resisenior.dynip.sapo.pt:8090/webif/StatusNotificationLog.html?uuid={uuid}&loginId={login_id}" 
             
             print(f"Acessando log da UUID: {uuid}")
             driver.get(url_log)
             
             try:
-                # Localiza e clica no botão do Excel (por texto ou tag)
                 print(f"Localizando botão de download para {uuid}...")
                 botao_excel = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Excel') or contains(text(), 'Export') or contains(@value, 'Excel')]")))
                 botao_excel.click()
-                
                 print(f"Download solicitado para UUID: {uuid}")
-                time.sleep(3)  # Pausa para garantir que o download comece antes de ir para o próximo
-                
+                time.sleep(3)
             except Exception as e_loop:
                 print(f"Não foi possível descarregar o log da UUID {uuid}. Erro: {e_loop}")
 
-    # Aguarda os últimos downloads terminarem de baixar na pasta atual
     print("\nAguardando finalização de todos os downloads...")
     time.sleep(7)
     print("Processo concluído com sucesso!")
