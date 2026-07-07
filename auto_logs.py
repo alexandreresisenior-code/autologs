@@ -31,7 +31,7 @@ except Exception as e:
     input("\nPressione Enter para sair...")
     exit()
 
-# 3. Inicia o Navegador Edge com tratamento de exceção
+# 3. Inicia o Navegador Edge
 print("Iniciando navegador Microsoft Edge...")
 try:
     servico_edge = Service()
@@ -50,7 +50,6 @@ try:
     print(f"Acessando página de login: {url_login}")
     driver.get(url_login)
     
-    # Passo A: Clicar no botão inicial de login (Manual Login)
     print("Aguardando o botão de Login aparecer na tela...")
     try:
         botao_login_inicial = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Login') or contains(text(), 'Manual')]")))
@@ -60,7 +59,6 @@ try:
     except Exception:
         print("Aviso: Não encontrou o botão por texto, tentando prosseguir assumindo que o form já possa estar aberto...")
 
-    # Passo B: Preencher Usuário e Senha
     print("Preenchendo dados de acesso...")
     try:
         campo_usuario = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='text']")))
@@ -78,7 +76,6 @@ try:
     campo_senha.clear()
     campo_senha.send_keys(senha)
 
-    # Passo C: Clicar no botão 'OK' para confirmar o login
     print("Confirmando o login...")
     try:
         botao_confirmar = driver.find_element(By.XPATH, "//*[text()='OK' or text()='Ok' or text()='Log-In' or @type='submit']")
@@ -87,7 +84,6 @@ try:
         from selenium.webdriver.common.keys import Keys
         campo_senha.send_keys(Keys.ENTER)
 
-    # Aguarda o painel interno carregar após o login
     time.sleep(5) 
     print("Login efetuado com sucesso!")
 
@@ -104,7 +100,7 @@ try:
         input("\nPressione Enter para sair...")
         exit()
 
-    # 5. Leitura dos UUIDs e downloads em massa usando o Token capturado
+    # 5. Leitura dos UUIDs e downloads em massa usando o ID preciso do botão
     if not os.path.exists('uuids.csv'):
         print("Erro: O arquivo 'uuids.csv' não foi encontrado.")
         driver.quit()
@@ -120,21 +116,25 @@ try:
             
             url_log = f"http://resisenior.dynip.sapo.pt:8090/webif/StatusNotificationLog.html?uuid={uuid}&loginId={login_id}" 
             
-            print(f"Acessando log da UUID: {uuid}")
+            print(f"\nAcessando log da UUID: {uuid}")
             driver.get(url_log)
             
             try:
-                print(f"Localizando botão de download para {uuid}...")
-                botao_excel = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Excel') or contains(text(), 'Export') or contains(@value, 'Excel')]")))
-                botao_excel.click()
-                print(f"Download solicitado para UUID: {uuid}")
-                time.sleep(3)
+                print(f"Aguardando botão 'download' ficar visível...")
+                # Alvo preciso usando o ID coletado!
+                botao_download = wait.until(EC.element_to_be_clickable((By.ID, "download")))
+                
+                # Executa o clique de forma direta
+                driver.execute_script("arguments[0].click();", botao_download)
+                print(f"Download solicitado com sucesso para UUID: {uuid}")
+                time.sleep(3)  # Pausa para o arquivo começar a descarregar
+                
             except Exception as e_loop:
                 print(f"Não foi possível descarregar o log da UUID {uuid}. Erro: {e_loop}")
 
     print("\nAguardando finalização de todos os downloads...")
-    time.sleep(7)
-    print("Processo concluído com sucesso!")
+    time.sleep(8)
+    print("Processo concluído!")
 
 except Exception as e:
     print(f"\nOcorreu um erro geral no processo: {e}")
