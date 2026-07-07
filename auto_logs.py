@@ -1,6 +1,8 @@
 import os
 import csv
 import time
+import glob
+import re
 from selenium import webdriver
 from selenium.webdriver.edge.options import Options
 from selenium.webdriver.edge.service import Service
@@ -8,11 +10,13 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# 1. Configurações de pastas e downloads
+# 1. Configurações de pastas e downloads em segundo plano (Headless)
 pasta_atual = os.getcwd()
 
 config_edge = Options()
-config_edge.add_argument("--start-maximized")
+config_edge.add_argument("--headless=new")  # Roda em segundo plano
+config_edge.add_argument("--disable-gpu")
+config_edge.add_argument("--window-size=1920,1080")
 config_edge.add_experimental_option("prefs", {
     "download.default_directory": pasta_atual,
     "download.prompt_for_download": False,
@@ -32,10 +36,16 @@ except Exception as e:
     exit()
 
 # 3. Inicia o Navegador Edge
-print("Iniciando navegador Microsoft Edge...")
+print("Iniciando navegador em segundo plano...")
 try:
     servico_edge = Service()
     driver = webdriver.Edge(service=servico_edge, options=config_edge)
+    
+    # Permitir downloads em modo invisível
+    driver.execute_cdp_cmd("Page.setDownloadBehavior", {
+        "behavior": "allow",
+        "downloadPath": pasta_atual
+    })
 except Exception as err_nav:
     print(f"\n--- ERRO AO INICIAR O EDGE ---")
     print(err_nav)
@@ -50,14 +60,14 @@ try:
     print(f"Acessando página de login: {url_login}")
     driver.get(url_login)
     
-    print("Aguardando o botão de Login aparecer na tela...")
+    print("Aguardando e clicando no botão 'Manual Login'...")
     try:
-        botao_login_inicial = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Login') or contains(text(), 'Manual')]")))
-        botao_login_inicial.click()
-        print("Botão inicial clicado. Aguardando campos de texto...")
+        botao_manual = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Manual') or contains(text(), 'Login') or @type='button']")))
+        driver.execute_script("arguments[0].click();", botao_manual)
+        print("Botão 'Manual Login' clicado com sucesso. Aguardando formulário...")
         time.sleep(2)
-    except Exception:
-        print("Aviso: Não encontrou o botão por texto, tentando prosseguir assumindo que o form já possa estar aberto...")
+    except Exception as e_btn:
+        print(f"Aviso ao tentar clicar no botão inicial (pode já estar aberto): {e_btn}")
 
     print("Preenchendo dados de acesso...")
     try:
@@ -100,7 +110,7 @@ try:
         input("\nPressione Enter para sair...")
         exit()
 
-    # 5. Leitura dos UUIDs e downloads em massa usando o ID preciso do botão
+    # 5. Leitura dos UUIDs e downloads em massa
     if not os.path.exists('uuids.csv'):
         print("Erro: O arquivo 'uuids.csv' não foi encontrado.")
         driver.quit()
@@ -118,27 +128,49 @@ try:
             
             print(f"\nAcessando log da UUID: {uuid}")
             driver.get(url_log)
+            time.sleep(2) # Tempo para garantir a renderização da tabela
             
+            # --- CAPTURA DO NOME AMIGÁVEL NA COLUNA 'Values' ---
+            nome_final_ficheiro = uuid # Nome padrão de segurança caso falhe
             try:
+                # Procura o th que contém 'Values' e pega o elemento de dados (td) correspondente na linha seguinte ou irmão
+                # Esta lógica XPATH localiza a célula de dados associada à coluna 'Values'
+                elemento_valor = driver.find_element(By.XPATH, "//th[contains(text(), 'Values')]/ancestor::table//tr[2]/td[contains(@class, 'value') or position()=2] | //th[contains(text(), 'Values')]/following::td[1]")
+                texto_campo = elemento_valor.text.strip()
+                
+                if texto_campo:
+                    # Remove caracteres que o Windows não aceita em nomes de ficheiros (\ / : * ? " < > |)
+                    nome_limpo = re.sub(r'[\\/*?:"<>|]', "", texto_campo)
+                    # Substitui espaços por underscores para manter o nome limpo
+                    nome_limpo = nome_limpo.replace(" ", "_")
+                    if nome_limpo:
+                        nome_final_ficheiro = nome_limpo
+                        print(f"Nome identificado na tabela: {nome_final_ficheiro}")
+            except Exception:
+                print(f"Aviso: Não conseguiu extrair o nome do campo 'Values' para esta UUID. Usando a UUID como nome.")
+
+            try:
+                # Tira uma "foto" da pasta antes do download
+                arquivos_antes = set(glob.glob(os.path.join(pasta_atual, "*")))
+                
                 print(f"Aguardando botão 'download' ficar visível...")
-                # Alvo preciso usando o ID coletado!
                 botao_download = wait.until(EC.element_to_be_clickable((By.ID, "download")))
                 
-                # Executa o clique de forma direta
                 driver.execute_script("arguments[0].click();", botao_download)
-                print(f"Download solicitado com sucesso para UUID: {uuid}")
-                time.sleep(3)  # Pausa para o arquivo começar a descarregar
+                print(f"Download solicitado...")
                 
-            except Exception as e_loop:
-                print(f"Não foi possível descarregar o log da UUID {uuid}. Erro: {e_loop}")
-
-    print("\nAguardando finalização de todos os downloads...")
-    time.sleep(8)
-    print("Processo concluído!")
-
-except Exception as e:
-    print(f"\nOcorreu um erro geral no processo: {e}")
-
-finally:
-    driver.quit()
-    input("\nProcesso finalizado. Pressione Enter para fechar a janela...")
+                # Aguarda o novo arquivo cair na pasta (máx 10 segundos)
+                arquivo_detectado = None
+                for _ in range(10):
+                    time.sleep(1)
+                    arquivos_depois = set(glob.glob(os.path.join(pasta_atual, "*")))
+                    novos_arquivos = arquivos_depois - arquivos_antes
+                    
+                    novos_validos = [f for f in novos_arquivos if not f.endswith('.crdownload') and not f.endswith('.tmp')]
+                    if novos_validos:
+                        arquivo_detectado = novos_validos[0]
+                        break
+                
+                # Se achou o arquivo, renomeia usando o nome coletado da tabela
+                if arquivo_detectado and os.path.exists(arquivo_detectado):
+                    extensao = os.path.splitext(arquivo_detectado)[1]
