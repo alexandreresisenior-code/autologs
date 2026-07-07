@@ -18,7 +18,7 @@ jobs:
 
     - name: Instalar dependencias
       run: |
-        pip install selenium pyinstaller webdriver-manager
+        pip install selenium pyinstaller
 
     - name: Criar o arquivo .EXE
       shell: cmd
