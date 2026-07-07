@@ -17,6 +17,8 @@ config_edge = Options()
 config_edge.add_argument("--headless=new")
 config_edge.add_argument("--disable-gpu")
 config_edge.add_argument("--window-size=1920,1080")
+config_edge.add_argument("--disable-infobars")
+config_edge.add_argument("--no-sandbox")
 config_edge.add_experimental_option("prefs", {
     "download.default_directory": pasta_atual,
     "download.prompt_for_download": False,
@@ -56,20 +58,17 @@ try:
     # 4. Realiza o Login dinâmico no WebVisu / CODESYS
     print(f"Acessando página de login: {url_login}")
     driver.get(url_login)
-    time.sleep(3)  # Pausa para o carregamento inicial da página
+    time.sleep(3)
     
-    # CLIQUE ESPECÍFICO NO BOTÃO "Manual Login" BASEADO NO HTML FORNECIDO
     print("Aguardando e clicando no botão 'Manual Login'...")
     try:
-        # Busca exata pela div com a classe userButton que contém o texto "Manual Login"
         botao_manual = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'userButton') and contains(text(), 'Manual Login')]")))
         driver.execute_script("arguments[0].click();", botao_manual)
         print("Botão 'Manual Login' clicado com sucesso. Aguardando formulário...")
-        time.sleep(4)  # Pausa essencial para o formulário de login real se abrir
+        time.sleep(4)
     except Exception as e_btn:
         print(f"Aviso ao tentar clicar no botão 'Manual Login': {e_btn}")
 
-    # Preenchendo dados de acesso com espera explícita
     print("Preenchendo dados de acesso...")
     try:
         campo_usuario = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='text']")))
@@ -129,24 +128,24 @@ try:
             
             print(f"\nAcessando log da UUID: {uuid}")
             driver.get(url_log)
-            time.sleep(2)
+            time.sleep(3)
             
-            # --- CAPTURA SEGURA DO NOME NO CAMPO VALUES DA TABELA ---
+            # --- CAPTURA CIRÚRGICA DO NOME NA COLUNA 'Values' (SUB-TABELA) ---
             nome_final_ficheiro = uuid
             try:
-                elemento_valor = driver.find_element(By.XPATH, "//th[contains(text(), 'Values')]/following::td[1]")
+                # Localiza a tag th 'Values', vai para a linha da tabela de dados e extrai a primeira célula da sub-tabela interna
+                elemento_valor = driver.find_element(By.XPATH, "//th[normalize-space(text())='Values']/ancestor::table//tr[2]/td[6]//table//tr//td[1]")
                 texto_campo = elemento_valor.text.strip()
-                if not texto_campo:
-                    elemento_valor = driver.find_element(By.XPATH, "//th[contains(text(), 'Values')]/ancestor::table//tr[2]/td[position()=2]")
-                    texto_campo = elemento_valor.text.strip()
                 
                 if texto_campo:
-                    nome_limpo = re.sub(r'[\\/*?:"<>|]', "", texto_campo).replace(" ", "_")
+                    # Remove os dois-pontos e espaços finais comuns (ex: 'P3 WC Geral : ' -> 'P3_WC_Geral')
+                    texto_limpo = texto_campo.replace(":", "").strip()
+                    nome_limpo = re.sub(r'[\\/*?:"<>|]', "", texto_limpo).replace(" ", "_")
                     if nome_limpo:
                         nome_final_ficheiro = nome_limpo
-                        print(f"Nome identificado na tabela: {nome_final_ficheiro}")
-            except Exception:
-                print(f"Aviso: Não encontrou o campo 'Values'. Usando UUID.")
+                        print(f"Nome extraído do campo VALUES: {nome_final_ficheiro}")
+            except Exception as e_val:
+                print(f"Aviso: Não encontrou o sub-elemento em 'Values' ({e_val}). Usando UUID.")
 
             try:
                 arquivos_antes = set(glob.glob(os.path.join(pasta_atual, "*")))
@@ -191,4 +190,3 @@ except Exception as e:
 
 finally:
     driver.quit()
-    input("\nProcesso finalizado. Pressione Enter para fechar a janela...")
