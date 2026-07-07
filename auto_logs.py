@@ -25,7 +25,7 @@ try:
         linhas = [linha.strip() for list_linha in f if (linha := list_linha.strip())]
     url_login = linhas[0]
     usuario = linhas[1]
-    senha = líneas[2]
+    senha = linhas[2]
 except Exception as e:
     print(f"Erro ao ler 'credenciais.txt': {e}")
     input("\nPressione Enter para sair...")
