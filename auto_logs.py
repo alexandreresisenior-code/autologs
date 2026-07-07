@@ -14,7 +14,7 @@ from selenium.webdriver.support import expected_conditions as EC
 pasta_atual = os.getcwd()
 
 config_edge = Options()
-config_edge.add_argument("--headless=new")  # Roda em segundo plano
+config_edge.add_argument("--headless=new")
 config_edge.add_argument("--disable-gpu")
 config_edge.add_argument("--window-size=1920,1080")
 config_edge.add_experimental_option("prefs", {
@@ -41,15 +41,12 @@ try:
     servico_edge = Service()
     driver = webdriver.Edge(service=servico_edge, options=config_edge)
     
-    # Permitir downloads em modo invisível
     driver.execute_cdp_cmd("Page.setDownloadBehavior", {
         "behavior": "allow",
         "downloadPath": pasta_atual
     })
 except Exception as err_nav:
-    print(f"\n--- ERRO AO INICIAR O EDGE ---")
-    print(err_nav)
-    print("-----------------------------------")
+    print(f"\n--- ERRO AO INICIAR O EDGE ---\n{err_nav}\n-----------------------------------")
     input("\nPressione Enter para fechar...")
     exit()
 
@@ -128,29 +125,26 @@ try:
             
             print(f"\nAcessando log da UUID: {uuid}")
             driver.get(url_log)
-            time.sleep(2) # Tempo para garantir a renderização da tabela
+            time.sleep(2)
             
-            # --- CAPTURA DO NOME AMIGÁVEL NA COLUNA 'Values' ---
-            nome_final_ficheiro = uuid # Nome padrão de segurança caso falhe
+            # --- CAPTURA SEGURA DO NOME NO CAMPO VALUES DA TABELA ---
+            nome_final_ficheiro = uuid
             try:
-                # Procura o th que contém 'Values' e pega o elemento de dados (td) correspondente na linha seguinte ou irmão
-                # Esta lógica XPATH localiza a célula de dados associada à coluna 'Values'
-                elemento_valor = driver.find_element(By.XPATH, "//th[contains(text(), 'Values')]/ancestor::table//tr[2]/td[contains(@class, 'value') or position()=2] | //th[contains(text(), 'Values')]/following::td[1]")
+                elemento_valor = driver.find_element(By.XPATH, "//th[contains(text(), 'Values')]/following::td[1]")
                 texto_campo = elemento_valor.text.strip()
+                if not texto_campo:
+                    elemento_valor = driver.find_element(By.XPATH, "//th[contains(text(), 'Values')]/ancestor::table//tr[2]/td[position()=2]")
+                    texto_campo = elemento_valor.text.strip()
                 
                 if texto_campo:
-                    # Remove caracteres que o Windows não aceita em nomes de ficheiros (\ / : * ? " < > |)
-                    nome_limpo = re.sub(r'[\\/*?:"<>|]', "", texto_campo)
-                    # Substitui espaços por underscores para manter o nome limpo
-                    nome_limpo = nome_limpo.replace(" ", "_")
+                    nome_limpo = re.sub(r'[\\/*?:"<>|]', "", texto_campo).replace(" ", "_")
                     if nome_limpo:
                         nome_final_ficheiro = nome_limpo
                         print(f"Nome identificado na tabela: {nome_final_ficheiro}")
             except Exception:
-                print(f"Aviso: Não conseguiu extrair o nome do campo 'Values' para esta UUID. Usando a UUID como nome.")
+                print(f"Aviso: Não encontrou o campo 'Values'. Usando UUID.")
 
             try:
-                # Tira uma "foto" da pasta antes do download
                 arquivos_antes = set(glob.glob(os.path.join(pasta_atual, "*")))
                 
                 print(f"Aguardando botão 'download' ficar visível...")
@@ -159,18 +153,38 @@ try:
                 driver.execute_script("arguments[0].click();", botao_download)
                 print(f"Download solicitado...")
                 
-                # Aguarda o novo arquivo cair na pasta (máx 10 segundos)
                 arquivo_detectado = None
                 for _ in range(10):
                     time.sleep(1)
                     arquivos_depois = set(glob.glob(os.path.join(pasta_atual, "*")))
                     novos_arquivos = arquivos_depois - arquivos_antes
-                    
                     novos_validos = [f for f in novos_arquivos if not f.endswith('.crdownload') and not f.endswith('.tmp')]
                     if novos_validos:
                         arquivo_detectado = novos_validos[0]
                         break
                 
-                # Se achou o arquivo, renomeia usando o nome coletado da tabela
                 if arquivo_detectado and os.path.exists(arquivo_detectado):
                     extensao = os.path.splitext(arquivo_detectado)[1]
+                    if not extensao:
+                        extensao = ".txt"
+                        
+                    novo_nome = os.path.join(pasta_atual, f"{nome_final_ficheiro}{extensao}")
+                    if os.path.exists(novo_nome):
+                        os.remove(novo_nome)
+                        
+                    os.rename(arquivo_detectado, novo_nome)
+                    print(f"Ficheiro guardado como: {nome_final_ficheiro}{extensao}")
+                else:
+                    print(f"Aviso: O download demorou a responder.")
+                
+            except Exception as e_loop:
+                print(f"Não foi possível processar a UUID {uuid}. Erro: {e_loop}")
+
+    print("\nProcesso concluído com sucesso!")
+
+except Exception as e:
+    print(f"\nOcorreu um erro geral no processo: {e}")
+
+finally:
+    driver.quit()
+    input("\nProcesso finalizado. Pressione Enter para fechar a janela...")
