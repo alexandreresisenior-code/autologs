@@ -25,7 +25,7 @@ try:
         linhas = [linha.strip() for list_linha in f if (linha := list_linha.strip())]
     url_login = linhas[0]
     usuario = linhas[1]
-    senha = linhas[2]
+    senha = líneas[2]
 except Exception as e:
     print(f"Erro ao ler 'credenciais.txt': {e}")
     input("\nPressione Enter para sair...")
@@ -34,7 +34,6 @@ except Exception as e:
 # 3. Inicia o Navegador Edge com tratamento de exceção
 print("Iniciando navegador Microsoft Edge...")
 try:
-    # Cria o serviço nativo do Edge que evita o travamento de caminhos (Path)
     servico_edge = Service()
     driver = webdriver.Edge(service=servico_edge, options=config_edge)
 except Exception as err_nav:
@@ -107,4 +106,39 @@ try:
 
     # 5. Leitura dos UUIDs e downloads em massa usando o Token capturado
     if not os.path.exists('uuids.csv'):
-        print
+        print("Erro: O arquivo 'uuids.csv' não foi encontrado.")
+        driver.quit()
+        input("\nPressione Enter para sair...")
+        exit()
+
+    with open('uuids.csv', 'r', encoding='utf-8') as f_csv:
+        leitor_csv = csv.reader(f_csv)
+        for linha in leitor_csv:
+            if not linha:
+                continue
+            uuid = linha[0].strip()
+            
+            url_log = f"http://resisenior.dynip.sapo.pt:8090/webif/StatusNotificationLog.html?uuid={uuid}&loginId={login_id}" 
+            
+            print(f"Acessando log da UUID: {uuid}")
+            driver.get(url_log)
+            
+            try:
+                print(f"Localizando botão de download para {uuid}...")
+                botao_excel = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Excel') or contains(text(), 'Export') or contains(@value, 'Excel')]")))
+                botao_excel.click()
+                print(f"Download solicitado para UUID: {uuid}")
+                time.sleep(3)
+            except Exception as e_loop:
+                print(f"Não foi possível descarregar o log da UUID {uuid}. Erro: {e_loop}")
+
+    print("\nAguardando finalização de todos os downloads...")
+    time.sleep(7)
+    print("Processo concluído com sucesso!")
+
+except Exception as e:
+    print(f"\nOcorreu um erro geral no processo: {e}")
+
+finally:
+    driver.quit()
+    input("\nProcesso finalizado. Pressione Enter para fechar a janela...")
