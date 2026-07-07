@@ -56,21 +56,25 @@ try:
     # 4. Realiza o Login dinâmico no WebVisu / CODESYS
     print(f"Acessando página de login: {url_login}")
     driver.get(url_login)
+    time.sleep(3)  # Pausa para o carregamento inicial da página
     
+    # CLIQUE ESPECÍFICO NO BOTÃO "Manual Login" BASEADO NO HTML FORNECIDO
     print("Aguardando e clicando no botão 'Manual Login'...")
     try:
-        botao_manual = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Manual') or contains(text(), 'Login') or @type='button']")))
+        # Busca exata pela div com a classe userButton que contém o texto "Manual Login"
+        botao_manual = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'userButton') and contains(text(), 'Manual Login')]")))
         driver.execute_script("arguments[0].click();", botao_manual)
         print("Botão 'Manual Login' clicado com sucesso. Aguardando formulário...")
-        time.sleep(2)
+        time.sleep(4)  # Pausa essencial para o formulário de login real se abrir
     except Exception as e_btn:
-        print(f"Aviso ao tentar clicar no botão inicial (pode já estar aberto): {e_btn}")
+        print(f"Aviso ao tentar clicar no botão 'Manual Login': {e_btn}")
 
+    # Preenchendo dados de acesso com espera explícita
     print("Preenchendo dados de acesso...")
     try:
-        campo_usuario = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='text']")))
+        campo_usuario = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='text']")))
     except Exception:
-        campo_usuario = wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'User')]/following::input[1]")))
+        campo_usuario = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'User')]/following::input[1]")))
         
     campo_usuario.clear()
     campo_usuario.send_keys(usuario)
@@ -86,7 +90,7 @@ try:
     print("Confirmando o login...")
     try:
         botao_confirmar = driver.find_element(By.XPATH, "//*[text()='OK' or text()='Ok' or text()='Log-In' or @type='submit']")
-        botao_confirmar.click()
+        driver.execute_script("arguments[0].click();", botao_confirmar)
     except Exception:
         from selenium.webdriver.common.keys import Keys
         campo_senha.send_keys(Keys.ENTER)
