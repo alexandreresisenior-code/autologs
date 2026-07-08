@@ -219,3 +219,36 @@ try:
                                 "FAULT": "ff6666",
                                 "CONFIRMED": "ffff66",
                                 "OK (prev. fault unconfirmed)": "6666ff"
+                            }
+                            
+                            for row_cells in ws.iter_rows(min_row=2):
+                                for cell in row_cells:
+                                    if cell.value in cores_status:
+                                        cor_hex = cores_status[cell.value]
+                                        cell.fill = PatternFill(start_color=cor_hex, end_color=cor_hex, fill_type="solid")
+                            
+                            wb.save(nome_ficheiro_final)
+                            print(f"[SUCESSO] -> {quarto} gerado perfeitamente.")
+                        else:
+                            print(f"[AVISO] -> O histórico para {quarto} está vazio no servidor.")
+                    else:
+                        print(f"[ERRO] Resposta JSON da API não contém a chave 'history'. JSON recebido:\n{json_data}")
+                else:
+                    print(f"[ERRO] Falha no pedido à API. Código HTTP: {response.status_code}")
+                    print(f"Conteúdo da resposta: {response.text[:200]}")
+                    
+            except Exception as e_loop:
+                print(f"[ERRO DE LOOP] Falha na execução da linha do quarto {quarto}:")
+                print(traceback.format_exc())
+
+    print(f"\n========================================")
+    print(f"Processo finalizado! Veja os resultados na pasta: {nome_pasta_logs}")
+    print(f"========================================")
+
+except Exception as e_geral:
+    print(f"\n[ERRO GERAL DO SISTEMA]:")
+    print(traceback.format_exc())
+
+# Pausa obrigatória no final para que a janela preta não feche sozinha e consiga ler tudo
+print("\n--- FIM DA EXECUÇÃO ---")
+input("Pressione a tecla Enter para fechar esta janela...")
