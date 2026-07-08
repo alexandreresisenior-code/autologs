@@ -18,7 +18,7 @@ jobs:
 
     - name: Instalar dependencias
       run: |
-        pip install selenium pyinstaller
+        pip install selenium pyinstaller requests pandas openpyxl
 
     - name: Criar o arquivo .EXE
       shell: cmd
