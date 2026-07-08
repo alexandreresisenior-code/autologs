@@ -11,6 +11,7 @@ from selenium import webdriver
 from selenium.webdriver.edge.options import Options
 from selenium.webdriver.edge.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
@@ -91,10 +92,17 @@ try:
     campo_pass.clear()
     campo_pass.send_keys(password)
 
-    # Submeter o Login
+    # Submeter o Login (Estratégia Híbrida)
     print("A efetuar login...")
-    botao_confirmar = driver.find_element(By.XPATH, "//*[text()='OK' or text()='Ok' or text()='Log-In']")
-    driver.execute_script("arguments[0].click();", botao_confirmar)
+    try:
+        # Tenta clicar no botão combinando a posição clássica (div[4]) e classes comuns do CODESYS
+        botao_confirmar = driver.find_element(By.XPATH, "//form/div[4] | //form/div[contains(@class, 'button')] | //*[normalize-space(text())='OK']")
+        driver.execute_script("arguments[0].click();", botao_confirmar)
+    except Exception:
+        # Caso o elemento visual falte, pressionar ENTER submete o formulário nativamente
+        print("Botão visual não interativo. A submeter formulário via tecla ENTER...")
+        campo_pass.send_keys(Keys.ENTER)
+        
     time.sleep(6)
 
     # Captura Dinâmica do loginId através da URL
@@ -117,7 +125,6 @@ try:
 
     print("\nA iniciar a extração de dados através da API...")
     with open('uuids.csv', newline='', encoding='utf-8') as csvfile:
-        # Deteta se o separador é ponto e vírgula ou vírgula automaticamente
         reader = csv.reader(csvfile, delimiter=';')
         
         for row in reader:
@@ -162,7 +169,7 @@ try:
                         df.to_excel(ficheiro_temporario, index=False)
                         
                         # Formatação Visual e Cores com Openpyxl
-                        nome_ficheiro_final = os.path.join(nome_pasta_logs, f'{quarto}_{data_current=}.xlsx'.replace('data_current=', data_atual))
+                        nome_ficheiro_final = os.path.join(nome_pasta_logs, f'{quarto}_{data_atual}.xlsx')
                         
                         # Se já existir um ficheiro com esse nome, remove para evitar conflitos
                         if os.path.exists(nome_ficheiro_final):
