@@ -1,10 +1,9 @@
 import os
 import csv
 import time
-import re
 import requests
 import pandas as pd
-import traceback  # Para mostrar a linha exata do erro
+import traceback
 from datetime import datetime
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
@@ -17,6 +16,23 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 print("=== INICIANDO MODO DEPURAR (DEBUG) ===")
+
+# ==========================================
+# CONFIGURAÇÕES GLOBAIS (Evita erros de sintaxe)
+# ==========================================
+CORES_STATUS = {
+    "OK": "66ff66",                           # Verde
+    "FAULT": "ff6666",                        # Vermelho
+    "CONFIRMED": "ffff66",                    # Amarelo
+    "OK (prev. fault unconfirmed)": "6666ff"  # Azul
+}
+
+MAPA_STATUS = {
+    0: 'OK',
+    1: 'FAULT',
+    2: 'CONFIRMED',
+    3: 'OK (prev. fault unconfirmed)'
+}
 
 # 1. Configurações Iniciais e Diretorias
 pasta_atual = os.getcwd()
@@ -48,7 +64,7 @@ config_edge.add_argument("--no-sandbox")
 # 3. Leitura das credenciais (acesso.txt)
 site, username, password = None, None, None
 try:
-    print("[DEBUG] A ler o ficheiro 'acesso.txt'...")
+    print("[DEBUG] A leer o ficheiro 'acesso.txt'...")
     with open('acesso.txt', 'r', encoding='utf-8') as file:
         for line in file:
             parts = line.split("--")
@@ -109,7 +125,7 @@ try:
         botao_confirmar = driver.find_element(By.XPATH, "//form/div[4] | //div[contains(@class, 'button') and text()='OK']")
         driver.execute_script("arguments[0].click();", botao_confirmar)
     except Exception:
-        print("[DEBUG] Botão OK não encontrado via XPath direto, a tentar enviar ENTER...")
+        print("[DEBUG] Botão OK não encontrado, a tentar enviar ENTER...")
         campo_pass.send_keys(Keys.ENTER)
 
     print("[DEBUG] A aguardar validação do loginId na URL...")
@@ -130,31 +146,26 @@ try:
         input("\nPressione Enter para analisar o erro no ecrã...")
         exit()
 
-    # Fecha o navegador de forma limpa
     driver.quit()
-    print("[DEBUG] Navegador fechado com sucesso. Iniciando fase API Requests.")
+    print("[DEBUG] Navegador fechado. Iniciando fase API Requests.")
 
     # 5. Processamento dos UUIDs via API (Requests + Pandas)
     if not os.path.exists('uuids.csv'):
-        print("[ERRO CRÍTICO] O ficheiro 'uuids.csv' não foi encontrado na pasta atual.")
+        print("[ERRO CRÍTICO] O ficheiro 'uuids.csv' não foi encontrado.")
         input("\nPressione Enter para sair...")
         exit()
 
     print("\n[DEBUG] A abrir o ficheiro 'uuids.csv'...")
     with open('uuids.csv', newline='', encoding='utf-8') as csvfile:
-        # Tenta ler com ponto e vírgula
         reader = csv.reader(csvfile, delimiter=';')
         linhas = list(reader)
-        print(f"[DEBUG] Total de linhas encontradas no CSV: {len(linhas)}")
+        print(f"[DEBUG] Total de linhas no CSV: {len(linhas)}")
         
         for num_linha, row in enumerate(linhas, start=1):
             if not row:
-                print(f"[DEBUG] Linha {num_linha} está vazia. Ignorando.")
                 continue
             
             if len(row) < 2:
-                print(f"[AVISO] Linha {num_linha} não tem colunas suficientes: {row}. A tentar separar por vírgula...")
-                # Fallback caso o CSV use vírgulas em vez de ponto e vírgula
                 row = row[0].split(',')
                 if len(row) < 2:
                     print(f"[ERRO] Linha {num_linha} inválida. Ignorada.")
@@ -165,90 +176,62 @@ try:
             
             url_api = f"http://{site}/webif/gaobjcgi?action=jobCommand&uuid={uuid}&cmd=getLog&loginId={id_login}"
             print(f"\n----------------------------------------")
-            print(f"[DEBUG] A processar Linha {num_linha} -> Quarto: {quarto} | UUID: {uuid}")
-            print(f"[DEBUG] URL da API: {url_api}")
+            print(f"[DEBUG] A processar Linha {num_linha} -> Quarto: {quarto}")
             
             try:
-                print("[DEBUG] A enviar pedido HTTP GET...")
                 response = requests.get(url_api, timeout=15)
-                print(f"[DEBUG] Resposta da API recebida. Status Code: {response.status_code}")
-                
                 if response.status_code == 200:
-                    print("[DEBUG] A tentar converter resposta para JSON...")
                     json_data = response.json()
                     
-                    if 'history' in json_data:
-                        total_historico = len(json_data['history'])
-                        print(f"[DEBUG] Chave 'history' encontrada no JSON com {total_historico} registos.")
+                    if 'history' in json_data and json_data['history']:
+                        df = pd.json_normalize(json_data['history'])
                         
-                        if total_historico > 0:
-                            print("[DEBUG] A normalizar dados com Pandas DataFrame...")
-                            df = pd.json_normalize(json_data['history'])
+                        if 'timestamp' in df.columns:
+                            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', errors='coerce').dt.tz_localize(None)
+                        
+                        if 'statusFrom' in df.columns:
+                            df['statusFrom'] = df['statusFrom'].map(MAPA_STATUS).fillna(df['statusFrom'])
+                        if 'statusTo' in df.columns:
+                            df['statusTo'] = df['statusTo'].map(MAPA_STATUS).fillna(df['statusTo'])
+                        
+                        ficheiro_temporario = 'data.xlsx'
+                        df.to_excel(ficheiro_temporario, index=False)
+                        
+                        nome_ficheiro_final = os.path.join(nome_pasta_logs, f'{quarto}_{data_atual}.xlsx')
+                        
+                        if os.path.exists(nome_ficheiro_final):
+                            os.remove(nome_ficheiro_final)
                             
-                            if 'timestamp' in df.columns:
-                                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', errors='coerce').dt.tz_localize(None)
-                            
-                            status_map = {
-                                0: 'OK', 1: 'FAULT', 2: 'CONFIRMED', 3: 'OK (prev. fault unconfirmed)'
-                            }
-                            
-                            if 'statusFrom' in df.columns:
-                                df['statusFrom'] = df['statusFrom'].map(status_map).fillna(df['statusFrom'])
-                            if 'statusTo' in df.columns:
-                                df['statusTo'] = df['statusTo'].map(status_map).fillna(df['statusTo'])
-                            
-                            ficheiro_temporario = 'data.xlsx'
-                            df.to_excel(ficheiro_temporario, index=False)
-                            print("[DEBUG] DataFrame guardado temporariamente como 'data.xlsx'")
-                            
-                            nome_ficheiro_final = os.path.join(nome_pasta_logs, f'{quarto}_{data_atual}.xlsx')
-                            print(f"[DEBUG] Caminho final do ficheiro: {nome_ficheiro_final}")
-                            
-                            if os.path.exists(nome_ficheiro_final):
-                                os.remove(nome_ficheiro_final)
-                                print("[DEBUG] Ficheiro final antigo removido para substituição.")
-                                
-                            os.rename(ficheiro_temporario, nome_ficheiro_final)
-                            
-                            print("[DEBUG] A aplicar estilos de cores com Openpyxl...")
-                            wb = load_workbook(nome_ficheiro_final)
-                            ws = wb.active
-                            
-                            cores_status = {
-                                "OK": "66ff66",
-                                "FAULT": "ff6666",
-                                "CONFIRMED": "ffff66",
-                                "OK (prev. fault unconfirmed)": "6666ff"
-                            }
-                            
-                            for row_cells in ws.iter_rows(min_row=2):
-                                for cell in row_cells:
-                                    if cell.value in cores_status:
-                                        cor_hex = cores_status[cell.value]
-                                        cell.fill = PatternFill(start_color=cor_hex, end_color=cor_hex, fill_type="solid")
-                            
-                            wb.save(nome_ficheiro_final)
-                            print(f"[SUCESSO] -> {quarto} gerado perfeitamente.")
-                        else:
-                            print(f"[AVISO] -> O histórico para {quarto} está vazio no servidor.")
+                        os.rename(ficheiro_temporario, nome_ficheiro_final)
+                        
+                        # Aplicar as cores nas células
+                        wb = load_workbook(nome_ficheiro_final)
+                        ws = wb.active
+                        
+                        for row_cells in ws.iter_rows(min_row=2):
+                            for cell in row_cells:
+                                if cell.value in CORES_STATUS:
+                                    cor_hex = CORES_STATUS[cell.value]
+                                    cell.fill = PatternFill(start_color=cor_hex, end_color=cor_hex, fill_type="solid")
+                        
+                        wb.save(nome_ficheiro_final)
+                        print(f"[SUCESSO] -> {quarto} gerado perfeitamente.")
                     else:
-                        print(f"[ERRO] Resposta JSON da API não contém a chave 'history'. JSON recebido:\n{json_data}")
+                        print(f"[AVISO] -> O histórico para {quarto} está vazio.")
                 else:
-                    print(f"[ERRO] Falha no pedido à API. Código HTTP: {response.status_code}")
-                    print(f"Conteúdo da resposta: {response.text[:200]}")
+                    print(f"[ERRO] Falha na API. Código HTTP: {response.status_code}")
                     
             except Exception as e_loop:
-                print(f"[ERRO DE LOOP] Falha na execução da linha do quarto {quarto}:")
+                print(f"[ERRO DE LOOP] Falha na linha do quarto {quarto}:")
                 print(traceback.format_exc())
 
     print(f"\n========================================")
-    print(f"Processo finalizado! Veja os resultados na pasta: {nome_pasta_logs}")
+    print(f"Processo finalizado! Pasta: {nome_pasta_logs}")
     print(f"========================================")
 
 except Exception as e_geral:
     print(f"\n[ERRO GERAL DO SISTEMA]:")
     print(traceback.format_exc())
 
-# Pausa obrigatória no final para que a janela preta não feche sozinha e consiga ler tudo
 print("\n--- FIM DA EXECUÇÃO ---")
 input("Pressione a tecla Enter para fechar esta janela...")
