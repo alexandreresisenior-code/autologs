@@ -1,0 +1,4 @@
+Site--resisenior.dynip.sapo.pt:8090
+Username--tecnico
+Password--034_2022
+
