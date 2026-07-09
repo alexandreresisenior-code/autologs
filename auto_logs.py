@@ -1,6 +1,7 @@
 import os
 import csv
 import time
+import sys  # Importado para gerir o redirecionamento do log
 import requests
 import pandas as pd
 import traceback
@@ -15,15 +16,13 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-print("=== INICIANDO MODO DEPURAR (DEBUG) ===")
-
 # ==========================================
-# CONFIGURAÇÕES GLOBAIS (Evita erros de sintaxe)
+# CONFIGURAÇÕES GLOBAIS
 # ==========================================
 CORES_STATUS = {
-    "OK": "66ff66",                           # Verde
-    "FAULT": "ff6666",                        # Vermelho
-    "CONFIRMED": "ffff66",                    # Amarelo
+    "OK": "66ff66",                            # Verde
+    "FAULT": "ff6666",                         # Vermelho
+    "CONFIRMED": "ffff66",                     # Amarelo
     "OK (prev. fault unconfirmed)": "6666ff"  # Azul
 }
 
@@ -34,17 +33,27 @@ MAPA_STATUS = {
     3: 'OK (prev. fault unconfirmed)'
 }
 
-# 1. Configurações Iniciais e Diretorias
+# 1. Configurações Iniciais de Pastas (Movido para o topo para iniciar o log imediatamente)
 pasta_atual = os.getcwd()
 data_atual = datetime.now().strftime("%d-%m-%Y")
 nome_pasta_logs = f'Logs_{data_atual}'
 
-print(f"[DEBUG] Diretoria atual: {pasta_atual}")
-print(f"[DEBUG] Pasta de destino dos logs: {nome_pasta_logs}")
-
 if not os.path.exists(nome_pasta_logs):
     os.mkdir(nome_pasta_logs)
-    print(f"[DEBUG] Pasta '{nome_pasta_logs}' criada.")
+
+# --- REDIRECIONAMENTO PARA O FICHEIRO LOG.TXT ---
+caminho_log = os.path.join(nome_pasta_logs, 'log.txt')
+# Abre em modo 'a' (append) para acumular histórico se correr mais que uma vez no mesmo dia
+arquivo_log = open(caminho_log, 'a', encoding='utf-8')
+sys.stdout = arquivo_log
+sys.stderr = arquivo_log
+# ------------------------------------------------
+
+print(f"\n========================================================")
+print(f"=== INICIANDO EXECUÇÃO SILENCIOSA: {datetime.now().strftime('%H:%M:%S')} ===")
+print(f"========================================================")
+print(f"[DEBUG] Diretoria atual: {pasta_atual}")
+print(f"[DEBUG] Pasta de destino dos logs: {nome_pasta_logs}")
 
 if os.path.exists('data.xlsx'):
     try:
@@ -64,7 +73,7 @@ config_edge.add_argument("--no-sandbox")
 # 3. Leitura das credenciais (acesso.txt)
 site, username, password = None, None, None
 try:
-    print("[DEBUG] A leer o ficheiro 'acesso.txt'...")
+    print("[DEBUG] A ler o ficheiro 'acesso.txt'...")
     with open('acesso.txt', 'r', encoding='utf-8') as file:
         for line in file:
             parts = line.split("--")
@@ -80,12 +89,12 @@ try:
     print(f"[DEBUG] Credenciais lidas -> Site: {site}, Username: {username}")
 except Exception as e:
     print(f"[ERRO CRÍTICO] Falha ao ler 'acesso.txt': {e}")
-    input("\nPressione Enter para sair...")
+    arquivo_log.close()
     exit()
 
 if not all([site, username, password]):
     print("[ERRO CRÍTICO] 'acesso.txt' tem dados em falta.")
-    input("\nPressione Enter para sair...")
+    arquivo_log.close()
     exit()
 
 # 4. Autenticação no Navegador
@@ -95,7 +104,7 @@ try:
     driver = webdriver.Edge(service=servico_edge, options=config_edge)
 except Exception as err_nav:
     print(f"[ERRO CRÍTICO] Falha ao iniciar o Edge:\n{traceback.format_exc()}")
-    input("\nPressione Enter para sair...")
+    arquivo_log.close()
     exit()
 
 wait = WebDriverWait(driver, 15)
@@ -143,7 +152,7 @@ try:
     else:
         print(f"\n[ERRO CRÍTICO] Não conseguiu extrair o loginId da URL.")
         driver.quit()
-        input("\nPressione Enter para analisar o erro no ecrã...")
+        arquivo_log.close()
         exit()
 
     driver.quit()
@@ -152,7 +161,7 @@ try:
     # 5. Processamento dos UUIDs via API (Requests + Pandas)
     if not os.path.exists('uuids.csv'):
         print("[ERRO CRÍTICO] O ficheiro 'uuids.csv' não foi encontrado.")
-        input("\nPressione Enter para sair...")
+        arquivo_log.close()
         exit()
 
     print("\n[DEBUG] A abrir o ficheiro 'uuids.csv'...")
@@ -226,7 +235,7 @@ try:
                 print(traceback.format_exc())
 
     print(f"\n========================================")
-    print(f"Processo finalizado! Pasta: {nome_pasta_logs}")
+    print(f"Processo finalizado com sucesso! Pasta: {nome_pasta_logs}")
     print(f"========================================")
 
 except Exception as e_geral:
@@ -234,4 +243,5 @@ except Exception as e_geral:
     print(traceback.format_exc())
 
 print("\n--- FIM DA EXECUÇÃO ---")
-input("Pressione a tecla Enter para fechar esta janela...")
+# Fecha o arquivo de log para garantir que todos os dados são guardados em disco
+arquivo_log.close()
