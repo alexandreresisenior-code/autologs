@@ -24,27 +24,19 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
 
-    - name: 4. Compilar com PyInstaller
-      run: |
-        # --onefile: Junta o python todo num único .exe
-        # --noconsole: Como o teu script já faz tudo em segundo plano e gera o log.txt,
-        #              isto impede que se abra aquela janela preta de comando (Prompt) no Windows.
-        pyinstaller --onefile --noconsole auto_logs.py
+    - name: 4. Compilar com PyInstaller (Usando pasta em vez de ficheiro único)
+    run: |
+      # Retirámos o --onefile. Agora ele gera uma pasta em dist/auto_logs/
+      pyinstaller --noconsole auto_logs.py
 
     - name: 5. Organizar Pasta Final
       run: |
-        # Cria uma pasta limpa para o utilizador
-        mkdir dist\Programa_Logs
-        
-        # Move o executável gerado para lá
-        move dist\auto_logs.exe dist\Programa_Logs\
-        
-        # Copia os ficheiros de configuração para o utilizador poder editar
-        copy acesso.txt dist\Programa_Logs\
-        copy uuids.csv dist\Programa_Logs\
+        # Copia os ficheiros de configuração diretamente para dentro da pasta gerada
+        copy acesso.txt dist\auto_logs\
+        copy uuids.csv dist\auto_logs\
 
     - name: 6. Disponibilizar para Download (Artifact)
       uses: actions/upload-artifact@v4
       with:
         name: Programa_Logs_Windows
-        path: dist/Programa_Logs/
+        path: dist/auto_logs/
