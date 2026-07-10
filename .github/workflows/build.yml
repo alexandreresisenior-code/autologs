@@ -1,4 +1,4 @@
-name: Gerar Executável Windows (Nuitka)
+name: Gerar Executável Windows (PyInstaller - Modo Pasta)
 
 on:
   push:
@@ -18,35 +18,27 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: 3. Instalar Dependências e Nuitka
+    - name: 3. Instalar Dependências e PyInstaller
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install nuitka
+        pip install pyinstaller
 
-    - name: 4. Compilar com Nuitka
+    - name: 4. Compilar com PyInstaller
       run: |
-        # --standalone: Garante que o executável leva o Python e as bibliotecas lá dentro
-        # --onefile: Junta tudo num único ficheiro .exe final
-        # --windows-console-mode=disable: Remove a janela preta de comando (execução totalmente invisível)
-        # --assume-yes-for-downloads: Permite descarregar as dependências do Nuitka sem travar a automação
-        python -m nuitka --standalone --onefile --windows-console-mode=disable --assume-yes-for-downloads auto_logs.py
+        # --noconsole: Remove a janela preta de comando (execução 100% invisível)
+        # Nota: Não usamos o --onefile. O PyInstaller vai criar uma pasta organizada em dist/auto_logs/
+        pyinstaller --noconsole auto_logs.py
 
-    - name: 5. Organizar Pasta Final
+    - name: 5. Copiar Configurações para a Pasta do Programa
       shell: cmd
       run: |
-        # Cria uma pasta limpa para agrupar o programa e as configurações
-        mkdir Pasta_Final
-        
-        # Move o executável gerado para a nova pasta
-        move auto_logs.exe Pasta_Final\
-        
-        # Copia os teus ficheiros de configuração para o utilizador poder editar
-        copy acesso.txt Pasta_Final\
-        copy uuids.csv Pasta_Final\
+        # Copia o acesso.txt e o uuids.csv diretamente para dentro da pasta do executável
+        copy acesso.txt dist\auto_logs\
+        copy uuids.csv dist\auto_logs\
 
     - name: 6. Disponibilizar para Download
       uses: actions/upload-artifact@v4
       with:
-        name: Programa_Logs_Nuitka
-        path: Pasta_Final/
+        name: Programa_Logs_PyInstaller
+        path: dist/auto_logs/
