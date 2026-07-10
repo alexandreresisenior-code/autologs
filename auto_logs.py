@@ -1,7 +1,7 @@
 import os
 import csv
 import time
-import sys  # Importado para gerir o redirecionamento do log
+import sys
 import requests
 import pandas as pd
 import traceback
@@ -33,21 +33,20 @@ MAPA_STATUS = {
     3: 'OK (prev. fault unconfirmed)'
 }
 
-# 1. Configurações Iniciais de Pastas (Movido para o topo para iniciar o log imediatamente)
+# 1. Configuração Inicial de Pastas e Ficheiro de Log
 pasta_atual = os.getcwd()
 data_atual = datetime.now().strftime("%d-%m-%Y")
 nome_pasta_logs = f'Logs_{data_atual}'
 
+# Garante que a pasta do dia existe antes de abrir o log
 if not os.path.exists(nome_pasta_logs):
     os.mkdir(nome_pasta_logs)
 
-# --- REDIRECIONAMENTO PARA O FICHEIRO LOG.TXT ---
+# Redireciona o stdout e stderr para o ficheiro log.txt dentro da pasta gerada
 caminho_log = os.path.join(nome_pasta_logs, 'log.txt')
-# Abre em modo 'a' (append) para acumular histórico se correr mais que uma vez no mesmo dia
 arquivo_log = open(caminho_log, 'a', encoding='utf-8')
 sys.stdout = arquivo_log
 sys.stderr = arquivo_log
-# ------------------------------------------------
 
 print(f"\n========================================================")
 print(f"=== INICIANDO EXECUÇÃO SILENCIOSA: {datetime.now().strftime('%H:%M:%S')} ===")
@@ -55,6 +54,7 @@ print(f"========================================================")
 print(f"[DEBUG] Diretoria atual: {pasta_atual}")
 print(f"[DEBUG] Pasta de destino dos logs: {nome_pasta_logs}")
 
+# Tenta remover o ficheiro temporário antigo se ele existir
 if os.path.exists('data.xlsx'):
     try:
         os.remove('data.xlsx')
@@ -70,10 +70,15 @@ config_edge.add_argument("--window-size=1920,1080")
 config_edge.add_argument("--disable-infobars")
 config_edge.add_argument("--no-sandbox")
 
-# 3. Leitura das credenciais (acesso.txt)
-site, username, password = None, None, None
 try:
+    # 3. Leitura das credenciais (acesso.txt)
+    site, username, password = None, None, None
     print("[DEBUG] A ler o ficheiro 'acesso.txt'...")
+    
+    if not os.path.exists('acesso.txt'):
+        print("[ERRO CRÍTICO] O ficheiro 'acesso.txt' não foi encontrado.")
+        sys.exit(1)
+
     with open('acesso.txt', 'r', encoding='utf-8') as file:
         for line in file:
             parts = line.split("--")
@@ -86,30 +91,24 @@ try:
                     username = val
                 elif key == "Password":
                     password = val
+                    
     print(f"[DEBUG] Credenciais lidas -> Site: {site}, Username: {username}")
-except Exception as e:
-    print(f"[ERRO CRÍTICO] Falha ao ler 'acesso.txt': {e}")
-    arquivo_log.close()
-    exit()
 
-if not all([site, username, password]):
-    print("[ERRO CRÍTICO] 'acesso.txt' tem dados em falta.")
-    arquivo_log.close()
-    exit()
+    if not all([site, username, password]):
+        print("[ERRO CRÍTICO] 'acesso.txt' tem dados em falta.")
+        sys.exit(1)
 
-# 4. Autenticação no Navegador
-print("\n[DEBUG] A iniciar o Edge em segundo plano...")
-try:
-    servico_edge = Service()
-    driver = webdriver.Edge(service=servico_edge, options=config_edge)
-except Exception as err_nav:
-    print(f"[ERRO CRÍTICO] Falha ao iniciar o Edge:\n{traceback.format_exc()}")
-    arquivo_log.close()
-    exit()
+    # 4. Autenticação no Navegador
+    print("\n[DEBUG] A iniciar o Edge em segundo plano...")
+    try:
+        servico_edge = Service()
+        driver = webdriver.Edge(service=servico_edge, options=config_edge)
+    except Exception as err_nav:
+        print(f"[ERRO CRÍTICO] Falha ao iniciar o Edge:\n{traceback.format_exc()}")
+        sys.exit(1)
 
-wait = WebDriverWait(driver, 15)
+    wait = WebDriverWait(driver, 15)
 
-try:
     url_visu = f"http://{site}/web.visu/"
     print(f"[DEBUG] A abrir URL de Login: {url_visu}")
     driver.get(url_visu)
@@ -152,8 +151,7 @@ try:
     else:
         print(f"\n[ERRO CRÍTICO] Não conseguiu extrair o loginId da URL.")
         driver.quit()
-        arquivo_log.close()
-        exit()
+        sys.exit(1)
 
     driver.quit()
     print("[DEBUG] Navegador fechado. Iniciando fase API Requests.")
@@ -161,8 +159,7 @@ try:
     # 5. Processamento dos UUIDs via API (Requests + Pandas)
     if not os.path.exists('uuids.csv'):
         print("[ERRO CRÍTICO] O ficheiro 'uuids.csv' não foi encontrado.")
-        arquivo_log.close()
-        exit()
+        sys.exit(1)
 
     print("\n[DEBUG] A abrir o ficheiro 'uuids.csv'...")
     with open('uuids.csv', newline='', encoding='utf-8') as csvfile:
@@ -242,6 +239,7 @@ except Exception as e_geral:
     print(f"\n[ERRO GERAL DO SISTEMA]:")
     print(traceback.format_exc())
 
-print("\n--- FIM DA EXECUÇÃO ---")
-# Fecha o arquivo de log para garantir que todos os dados são guardados em disco
-arquivo_log.close()
+finally:
+    print("\n--- FIM DA EXECUÇÃO ---")
+    # Garante que o arquivo fecha de forma segura salvando todos os dados em disco
+    arquivo_log.close()
