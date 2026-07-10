@@ -23,10 +23,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests pandas openpyxl selenium pyinstaller
 
-    - name: 4. Compilar com PyInstaller (Com Consola para evitar o Antivírus)
+    - name: 4. Compilar com PyInstaller (Garante que inclui todo o Selenium)
       run: |
-        # Removemos o --noconsole. Agora o antivírus aceita o programa legitimamente.
-        pyinstaller auto_logs.py
+        # --collect-all selenium: Força o PyInstaller a recolher todas as sub-bibliotecas dinâmicas do Selenium
+        pyinstaller --collect-all selenium auto_logs.py
 
     - name: 5. Copiar Configurações para a Pasta do Programa
       shell: cmd
