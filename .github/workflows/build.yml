@@ -26,10 +26,9 @@ jobs:
 
     - name: 4. Compilar com Nuitka (Gera um EXE nativo muito mais limpo)
       run: |
-        # --standalone: inclui o python
-        # --onefile: junta tudo num ficheiro
-        # --disable-console: equivalente ao --noconsole do pyinstaller
-        python -m nuitka --standalone --onefile --disable-console auto_logs.py
+        # --windows-console-mode=disable: Atualizado para evitar o aviso do Nuitka
+        # --accept-downloads: Permite que o GitHub Actions descarregue o Dependency Walker sem perguntar nada
+        python -m nuitka --standalone --onefile --windows-console-mode=disable --accept-downloads auto_logs.py
 
     - name: 5. Organizar Pasta Final
       run: |
