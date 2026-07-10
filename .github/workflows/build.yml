@@ -1,16 +1,16 @@
-name: Gerar Executável Windows (PyInstaller - Modo Pasta)
+name: Gerar Executável Windows (PyInstaller - Modo Pasta)v3
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # Permite correr o processo manualmente clicando no botão no GitHub
+  workflow_dispatch: # Permite-te correr o processo manualmente no GitHub sempre que quiseres
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-    - name: 1. Descarregar o código
+    - name: 1. Descarregar o código do Repositório
       uses: actions/checkout@v4
 
     - name: 2. Configurar o Python
@@ -21,23 +21,23 @@ jobs:
     - name: 3. Instalar Dependências e PyInstaller
       run: |
         python -m pip install --upgrade pip
-        # Força a instalação de todas as bibliotecas necessárias diretamente aqui
+        # Forçamos a instalação explícita de todas as bibliotecas necessárias para evitar erros
         pip install requests pandas openpyxl selenium pyinstaller
 
-    - name: 4. Compilar com PyInstaller
+    - name: 4. Compilar com PyInstaller (Em segundo plano)
       run: |
-        # --noconsole: Remove a janela preta de comando (execução 100% invisível)
-        # Nota: Não usamos o --onefile. O PyInstaller vai criar uma pasta organizada em dist/auto_logs/
+        # --noconsole: Remove a janela preta de comandos. O executável corre em background.
+        # Nota: Não usamos o --onefile para o antivírus não bloquear o programa.
         pyinstaller --noconsole auto_logs.py
 
     - name: 5. Copiar Configurações para a Pasta do Programa
       shell: cmd
       run: |
-        # Copia o acesso.txt e o uuids.csv diretamente para dentro da pasta do executável
+        # Coloca o acesso.txt e o uuids.csv ao lado do executável para poderes alterar os dados
         copy acesso.txt dist\auto_logs\
         copy uuids.csv dist\auto_logs\
 
-    - name: 6. Disponibilizar para Download
+    - name: 6. Disponibilizar para Download (Artifact)
       uses: actions/upload-artifact@v4
       with:
         name: Programa_Logs_PyInstaller
